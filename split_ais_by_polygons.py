@@ -43,8 +43,8 @@ def big_udf(dict_ports):
 
 
 ## INPUT
-file_path = '/home/huangshichen/work/CTTIC/pos_jz_mmsi_list_2021'
-polygon_files_path = '/home/huangshichen/work/CTTIC/data/port_polygon_info.csv'
+file_path = '***'
+polygon_files_path = '***'
 dict_ports = get_polygon_from_csv(polygon_files_path)
 ## MAIN
 #dict_ports = get_polygon_from_csv(polygon_files_path)
@@ -66,7 +66,7 @@ df = df.withColumn('时间',
 
 #%%time
 df = df.withColumn("ports",big_udf(dict_ports)(F.col("经度"), F.col("纬度")))
-df.filter(F.col("ports") != 'UNSET').write.csv('/home/huangshichen/work/CTTIC/ports_data_in_port_polygo0808')
+df.filter(F.col("ports") != 'UNSET').write.csv('***')
 
 #CPU times: user 3.89 s, sys: 1.46 s, total: 5.35 s
 #Wall time: 18h 7min 11s
