@@ -1,24 +1,24 @@
-import geopandas as gpd
-import mercantile
-import random
-import time
-from shapely.geometry import Point, Polygon
 from pyspark.sql import Row
 import pyspark.sql.functions as F
-import pyspark.sql.types as T
 from pyspark.sql.types import IntegerType,BooleanType,DateType,DoubleType,StringType, StructType, StructField,ArrayType
-from pyspark.sql.functions import col,to_date,unix_timestamp
-from pyspark.context import SparkContext
+from pyspark.sql.functions import col,lit
 from pyspark.sql.session import SparkSession
 import pandas as pd
-from sklearn.cluster import DBSCAN,KMeans
+from sklearn.cluster import DBSCAN,KMeans,OPTICS
 import numpy as np
 
-file_path = '/home/.../Yantai'
 
-df = spark.read.csv(file_path,header=False)
+def dbscan_x1(coords):
+    kms_per_radian = 6371.0086
+    epsilon = 0.2/kms_per_radian
+    db = OPTICS(eps = epsilon,min_samples = 20,
+                algorithm='ball_tree',metric = 'haversine'
+                ).fit(np.radians(coords))
+    cluster_labels = db.labels_.reshape(-1,1)
+    coords_np = np.array(coords)
+    return np.concatenate([coords_np,cluster_labels],axis=1).tolist()
 
-def dbscan_x(coords):
+def dbscan_x2(coords):
     kms_per_radian = 6371.0086
     epsilon = 0.2/kms_per_radian
     db = DBSCAN(eps = epsilon,min_samples = 20,
@@ -38,38 +38,60 @@ def dbscan_x(coords):
         result.append([latlng[1],latlng[0],n])
     return result
 
-
-def dbscan_pandas_udf(data):
-    data["cluster"] = DBSCAN(eps=5, min_samples=3).fit_predict(data[["_c1", "_c2"]])
-    result = pd.DataFrame(data, columns=["_c1", "_c2" "cluster"])
-    return result
-
-
-
 output_schema = ArrayType(StructType(
             [
                 StructField('_c1', DoubleType(),False),
                 StructField('_c2', DoubleType(),False),
-                StructField('clusterid', IntegerType(),False)
+                StructField('clusterid', DoubleType(),False)
+             ]
+    ))
+    
+    
+# INPUT
+file_path = '/home/huangshichen/work/CTTIC/pos_jz_2021_ports'
+
+save_path = '/home/huangshichen/work/CTTIC/qingdao_test.csv'
+output_schema = ArrayType(StructType(
+            [
+                StructField('_c1', DoubleType(),False),
+                StructField('_c2', DoubleType(),False),
+                StructField('clusterid', DoubleType(),False)
              ]
     ))
 
+GROUPBY = True
+
+# READ FILE AND PROCESSING
+spark = SparkSession \
+    .builder \
+    .appName("DBSCAN") \
+    .getOrCreate()
+df = spark.read.csv(file_path,header=False)
+df = df.withColumn("_c1",df._c1.cast(DoubleType()))
+df = df.withColumn("_c2",df._c2.cast(DoubleType()))
 
 
-#df_stop = df.where(df._c4<=1)
-df_stop = df
-udf_dbscan = F.udf(lambda x: dbscan_x(x),output_schema)
-#udf_dbscan = F.udf(lambda x: dbscan_x(x),IntegerType())
 
-#data = df_stop.sample(0.3,123)
-dataDF = df_stop.withColumn('point',F.array(df_stop._c1,df_stop._c2))\
-.groupby('_c0').agg(F.collect_list('point').alias('point_list'))\
-.withColumn('cluster',udf_dbscan(F.col('point_list')))
 
-resultDF = dataDF.withColumn('centers',F.explode('cluster'))\
-.select('_c0',F.col('centers').getItem('_c1').alias('_c1'),
-       F.col('centers').getItem('_c2').alias('_c2'),
-       F.col('centers').getItem('clusterid').alias('clusterid'))
-       
-resultDF.toPandas().to_csv('/home/.../test_yantai.csv')
+# SPLIT AREA
+df_stop = df.filter('_c1 > 117.2202 and _c1 < 119.9410 and _c2 > 37.4277 and _c2 < 40.1261')
+df_stop = df_stop.sample(0.1)
+df_stop.count()
+
+if GROUPBY:
+    
+    df_stop = df_stop.withColumn('group',lit(1))
+    udf_dbscan = F.udf(lambda x: dbscan_x1(x),output_schema)
+
+
+    dataDF = df_stop.withColumn('point',F.array(df_stop._c1,df_stop._c2))\
+    .groupby('group').agg(F.collect_list('point').alias('point_list'))\
+    .withColumn('cluster',udf_dbscan(F.col('point_list')))
+
+    resultDF = dataDF.withColumn('centers',F.explode('cluster'))\
+    .select('group',F.col('centers').getItem('_c1').alias('_c1'),
+           F.col('centers').getItem('_c2').alias('_c2'),
+           F.col('centers').getItem('clusterid').alias('clusterid'))
+
+aa = resultDF.toPandas()
 
