@@ -12,7 +12,7 @@ def dbscan_x1(coords):
     kms_per_radian = 6371.0086
     epsilon = 0.2/kms_per_radian
     db = OPTICS(eps = epsilon,min_samples = 20,
-                algorithm='ball_tree',metric = 'haversine'
+                algorithm='ball_tree',metric = 'haversine',cluster_method='dbscan'
                 ).fit(np.radians(coords))
     cluster_labels = db.labels_.reshape(-1,1)
     coords_np = np.array(coords)
