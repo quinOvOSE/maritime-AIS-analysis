@@ -48,9 +48,9 @@ output_schema = ArrayType(StructType(
     
     
 # INPUT
-file_path = '/home/huangshichen/work/CTTIC/pos_jz_2021_ports'
+file_path = '/home/'
 
-save_path = '/home/huangshichen/work/CTTIC/qingdao_test.csv'
+save_path = '/home/'
 output_schema = ArrayType(StructType(
             [
                 StructField('_c1', DoubleType(),False),
